@@ -23,10 +23,14 @@
   --t1:      #EDD8A8;
   --t2:      #9A7A58;
   --t3:      #584838;
-  --indoor:  #2A5A8A;
-  --ind2:    #4A8ABA;
-  --outdoor: #2A6A3A;
-  --out2:    #4AAA5A;
+  --house:   #4B3C9A;
+  --house2:   #7D6EF0;
+  --tent:     #2A5A8A;
+  --tent2:    #4A8ABA;
+  --outdoor:  #2A6A3A;
+  --out2:     #4AAA5A;
+  --dj:       #8A2A7A;
+  --dj2:      #D84EC2;
   --red:     #8A2A2A;
   --red2:    #B04040;
   --green:   #2A6A3A;
@@ -79,8 +83,10 @@ body::before {
   font-size:11px; font-family:'Barlow Condensed',sans-serif; font-weight:700;
   letter-spacing:.8px; text-transform:uppercase; white-space:nowrap;
 }
-.badge-indoor  { background:rgba(42,90,138,.25); color:var(--ind2); border:1px solid rgba(42,90,138,.5); }
+.badge-house   { background:rgba(75,60,154,.25); color:var(--house2); border:1px solid rgba(75,60,154,.5); }
+.badge-tent    { background:rgba(42,90,138,.25); color:var(--tent2); border:1px solid rgba(42,90,138,.5); }
 .badge-outdoor { background:rgba(42,106,58,.25); color:var(--out2); border:1px solid rgba(42,106,58,.5); }
+.badge-dj      { background:rgba(138,42,122,.25); color:var(--dj2); border:1px solid rgba(138,42,122,.5); }
 .badge-pending { background:rgba(200,136,30,.18); color:var(--amber2); border:1px solid rgba(200,136,30,.45); }
 
 .form-label { font-size:12px; font-weight:600; color:var(--t2); letter-spacing:.4px; }
@@ -209,8 +215,10 @@ body::before {
   cursor:pointer; transition:all .18s; text-align:center;
 }
 .loc-btn:hover { border-color:var(--brd); color:var(--t1); }
-.loc-indoor  { background:rgba(42,90,138,.25); border-color:var(--indoor); color:var(--ind2); }
+.loc-house   { background:rgba(75,60,154,.25); border-color:var(--house); color:var(--house2); }
+.loc-tent    { background:rgba(42,90,138,.25); border-color:var(--tent); color:var(--tent2); }
 .loc-outdoor { background:rgba(42,106,58,.25); border-color:var(--outdoor); color:var(--out2); }
+.loc-dj      { background:rgba(138,42,122,.25); border-color:var(--dj); color:var(--dj2); }
 
 /* ─── DRINKS ─────────────────────────────────────────── */
 .drinks-list { display:flex; flex-direction:column; gap:7px; margin-bottom:22px; }
@@ -510,10 +518,22 @@ function buildOrders() {
   return html;
 }
 
+
+function locMeta(loc) {
+  const map = {
+    house: { cls:'house', label:'🏠 Haus' },
+    tent: { cls:'tent', label:'⛺ Zelt' },
+    outdoor: { cls:'outdoor', label:'🌿 Außen' },
+    dj: { cls:'dj', label:'🎧 DJ' }
+  };
+  return map[loc] || map.house;
+}
+
 function orderCardHTML(o, s, isDone) {
   const table = s.tables.find(t=>t.id===o.tableId);
   const tName = table ? table.name : 'Unbekannt';
-  const loc   = table ? table.location : 'indoor';
+  const loc   = table ? table.location : 'house';
+  const l = locMeta(loc);
   const items = o.items.map(i => {
     const d = s.drinks.find(d=>d.id===i.drinkId);
     return `<li><span class="order-qty">${i.qty}×</span> ${d ? d.name : '?'}</li>`;
@@ -523,7 +543,7 @@ function orderCardHTML(o, s, isDone) {
       <div class="order-card-left">
         <div class="order-meta">
           <span class="order-name">${tName}</span>
-          <span class="badge badge-${loc==='indoor'?'indoor':'outdoor'}">${loc==='indoor'?'⛺ Zelt':'🌿 Außen'}</span>
+          <span class="badge badge-${l.cls}">${l.label}</span>
           <span class="order-time">${timeFmt(o.ts)}</span>
         </div>
         <ul class="order-items">${items}</ul>
@@ -543,7 +563,7 @@ window.markDone = function(id) {
 };
 
 /* ── TABLES TAB ─────────────────────────────────────── */
-let _newLoc = 'indoor';
+let _newLoc = 'house';
 
 function buildTables() {
   const s = getState();
@@ -551,7 +571,7 @@ function buildTables() {
     <div class="table-card">
       <div class="table-card-top">
         <h3>${t.name}</h3>
-        <span class="badge badge-${t.location==='indoor'?'indoor':'outdoor'}">${t.location==='indoor'?'Zelt':'Außen'}</span>
+        <span class="badge badge-${locMeta(t.location).cls}">${locMeta(t.location).label}</span>
       </div>
       <div class="table-card-actions">
         <button class="tc-btn tc-del" onclick="deleteTable('${t.id}')">Löschen</button>
@@ -573,9 +593,11 @@ function buildTables() {
         </div>
         <div class="form-group">
           <label class="form-label">Standort</label>
-          <div class="loc-toggle">
-            <button id="lb-indoor"  class="loc-btn ${_newLoc==='indoor' ?'loc-indoor' :''}" onclick="setLoc('indoor')">⛺ Zelt</button>
+          <div class="loc-toggle" style="flex-wrap:wrap">
+            <button id="lb-house" class="loc-btn ${_newLoc==='house'?'loc-house':''}" onclick="setLoc('house')">🏠 Haus</button>
+            <button id="lb-tent" class="loc-btn ${_newLoc==='tent'?'loc-tent':''}" onclick="setLoc('tent')">⛺ Zelt</button>
             <button id="lb-outdoor" class="loc-btn ${_newLoc==='outdoor'?'loc-outdoor':''}" onclick="setLoc('outdoor')">🌿 Außen</button>
+            <button id="lb-dj" class="loc-btn ${_newLoc==='dj'?'loc-dj':''}" onclick="setLoc('dj')">🎧 DJ</button>
           </div>
         </div>
         <div><button class="btn btn-primary" onclick="addTable()" style="height:44px">+ Hinzufügen</button></div>
@@ -585,8 +607,10 @@ function buildTables() {
 
 window.setLoc = function(loc) {
   _newLoc = loc;
-  document.getElementById('lb-indoor').className  = 'loc-btn' + (loc==='indoor'  ? ' loc-indoor'  : '');
-  document.getElementById('lb-outdoor').className = 'loc-btn' + (loc==='outdoor' ? ' loc-outdoor' : '');
+  ['house','tent','outdoor','dj'].forEach(k => {
+    const el = document.getElementById('lb-' + k);
+    if (el) el.className = 'loc-btn' + (loc===k ? ' loc-' + k : '');
+  });
 };
 
 window.addTable = function() {
@@ -661,7 +685,7 @@ function buildDrinks() {
     ? `<div class="empty-state fade-in"><div class="es-icon">🍹</div><h3>Noch keine Getränke</h3><p>Füge dein erstes Getränk hinzu.</p></div>`
     : `<div class="drinks-list fade-in">${s.drinks.map(d=>`
         <div class="drink-item">
-          <span class="drink-item-name">${d.name}</span>
+          <div><span class="drink-item-name">${d.name}</span>${d.description ? `<div style="font-size:12px;color:var(--t3);margin-top:4px">${d.description}</div>`:''}${d.allowNonAlcoholic ? `<div style="font-size:11px;color:var(--amber2);margin-top:5px">Alkoholfrei möglich</div>`:''}</div>
           <button class="drink-del" onclick="deleteDrink('${d.id}')">Entfernen</button>
         </div>`).join('')}</div>`;
 
@@ -674,7 +698,7 @@ function buildDrinks() {
           <input id="new-drink-name" class="input" placeholder="z. B. Bier, Wein, Wasser, Cocktail…" maxlength="60"
             onkeydown="if(event.key==='Enter') addDrink()">
         </div>
-        <div><button class="btn btn-primary" onclick="addDrink()" style="height:44px">+ Hinzufügen</button></div>
+        <div class="form-group"><label class="form-label">Beschreibung</label><input id="new-drink-desc" class="input" placeholder="z. B. fruchtig, mit Limette…" maxlength="120"></div><div class="form-group" style="flex:0 0 180px"><label class="form-label">Optionen</label><label style="display:flex;gap:8px;align-items:center;font-size:13px;color:var(--t2)"><input id="new-drink-na" type="checkbox"> Alkoholfrei möglich</label></div><div><button class="btn btn-primary" onclick="addDrink()" style="height:44px">+ Hinzufügen</button></div>
       </div>
     </div>`;
 }
@@ -682,9 +706,13 @@ function buildDrinks() {
 window.addDrink = function() {
   const el = document.getElementById('new-drink-name');
   const name = el.value.trim();
+  const descEl = document.getElementById('new-drink-desc');
+  const naEl = document.getElementById('new-drink-na');
+  const description = descEl ? descEl.value.trim() : '';
+  const allowNonAlcoholic = !!(naEl && naEl.checked);
   if (!name) { el.focus(); el.style.borderColor='var(--amber)'; setTimeout(()=>el.style.borderColor='',1200); return; }
-  mutate(s => s.drinks.push({ id:uid(), name }));
-  el.value = '';
+  mutate(s => s.drinks.push({ id:uid(), name, description, allowNonAlcoholic }));
+  el.value = ''; if (descEl) descEl.value=''; if (naEl) naEl.checked=false;
   renderTab();
   setTimeout(() => { const e = document.getElementById('new-drink-name'); if(e) e.focus(); }, 50);
 };
@@ -698,6 +726,7 @@ window.deleteDrink = function(id) {
    CUSTOMER TABLE PAGE
 ══════════════════════════════════════════ */
 let _cart = {}; // drinkId → qty
+let _naOptions = {}; // drinkId → alkoholfrei
 
 function renderTablePage(tableId) {
   const s = getState();
@@ -730,6 +759,8 @@ function renderTablePage(tableId) {
     return `
       <div class="drink-sel-card ${q>0?'active':''}" id="dsc-${d.id}">
         <div class="drink-sel-name">${d.name}</div>
+        ${d.description ? `<div style="font-size:12px;color:var(--t2);margin-top:-8px;margin-bottom:10px">${d.description}</div>` : ''}
+        ${d.allowNonAlcoholic ? `<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);margin:-2px 0 10px"><input type="checkbox" ${_naOptions[d.id] ? 'checked' : ''} onchange="toggleNA('${d.id}', this.checked)"> Alkoholfrei</label>` : ''}
         <div class="qty-row">
           <button class="qty-pm" onclick="changeQty('${d.id}',-1)">−</button>
           <input type="range" class="qty-slider" id="sl-${d.id}" min="0" max="10" value="${q}"
@@ -750,7 +781,7 @@ function renderTablePage(tableId) {
         <div class="tv-bar-name">Bar Manager</div>
         <div class="tv-table-name">${table.name}</div>
         <div class="tv-meta">
-          <span class="badge badge-${table.location==='indoor'?'indoor':'outdoor'}">${table.location==='indoor'?'⛺ Zelt':'🌿 Außen'}</span>
+          <span class="badge badge-${locMeta(table.location).cls}">${locMeta(table.location).label}</span>
           <span class="tv-subtitle">Wähle deine Getränke aus</span>
         </div>
       </div>
@@ -795,19 +826,20 @@ function setQtyVal(drinkId, qty) {
 window.changeQty = function(id, d) { setQtyVal(id, (_cart[id]||0) + d); };
 window.slideQty  = function(id, v) { setQtyVal(id, parseInt(v)||0); };
 window.numQty    = function(id, v) { setQtyVal(id, parseInt(v)||0); };
+window.toggleNA  = function(id, checked) { _naOptions[id] = !!checked; };
 
 window.openCart = function() {
   const s = getState();
   const items = Object.entries(_cart).filter(([,q])=>q>0).map(([id,qty]) => {
     const d = s.drinks.find(d=>d.id===id);
-    return { drinkId:id, name: d?d.name:'?', qty };
+    return { drinkId:id, name: d?d.name:'?', qty, nonAlcoholic: !!_naOptions[id] };
   });
   if (items.length === 0) return;
 
   const total = items.reduce((a,b)=>a+b.qty, 0);
   const itemsHTML = items.map(it => `
     <div class="cart-item">
-      <span class="ci-name">${it.name}</span>
+      <span class="ci-name">${it.name}${it.nonAlcoholic ? ' · Alkoholfrei' : ''}</span>
       <span class="ci-qty">${it.qty}×</span>
       <button class="ci-del" onclick="removeCartItem('${it.drinkId}')">✕</button>
     </div>`).join('');
@@ -840,11 +872,12 @@ window.submitOrder = function() {
   const h = (location.hash||'').replace('#','');
   const tableId = h.startsWith('table/') ? h.slice(6) : null;
   if (!tableId) return;
-  const items = Object.entries(_cart).filter(([,q])=>q>0).map(([drinkId,qty])=>({drinkId,qty}));
+  const items = Object.entries(_cart).filter(([,q])=>q>0).map(([drinkId,qty])=>({drinkId,qty, nonAlcoholic: !!_naOptions[drinkId]}));
   if (items.length === 0) return;
 
   mutate(s => s.orders.push({ id:uid(), tableId, items, status:'pending', ts:Date.now() }));
   _cart = {};
+  _naOptions = {};
 
   const box = document.getElementById('modal-box');
   box.innerHTML = `
