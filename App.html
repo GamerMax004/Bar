@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Bar App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+/* ─── TOKENS ─────────────────────────────────────────── */
+:root {
+  --bg:      #08060A;
+  --s1:      #120D0A;
+  --s2:      #1C1410;
+  --s3:      #261C14;
+  --brd:     #36241A;
+  --brd2:    #4A3222;
+  --amber:   #C8881E;
+  --amber2:  #E8A030;
+  --amber3:  #F5BC58;
+  --aglow:   rgba(200,136,30,.14);
+  --t1:      #EDD8A8;
+  --t2:      #9A7A58;
+  --t3:      #584838;
+  --indoor:  #2A5A8A;
+  --ind2:    #4A8ABA;
+  --outdoor: #2A6A3A;
+  --out2:    #4AAA5A;
+  --red:     #8A2A2A;
+  --red2:    #B04040;
+  --green:   #2A6A3A;
+  --green2:  #3A8A4A;
+  --r:       10px;
+  --r2:      16px;
+}
+
+/* ─── RESET ──────────────────────────────────────────── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; background:var(--bg); color:var(--t1); font-family:'Barlow',sans-serif; font-size:15px; -webkit-font-smoothing:antialiased; }
+a { color:inherit; text-decoration:none; }
+button { font-family:'Barlow',sans-serif; }
+input::-webkit-inner-spin-button, input::-webkit-outer-spin-button { -webkit-appearance:none; }
+input[type=number] { -moz-appearance:textfield; }
+
+/* Grain overlay */
+body::before {
+  content:''; position:fixed; inset:0; pointer-events:none; z-index:9999; opacity:.28;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");
+}
+
+/* ─── SHARED COMPONENTS ──────────────────────────────── */
+.btn {
+  padding:11px 22px; border:none; border-radius:var(--r);
+  font-weight:700; font-size:14px; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  transition:all .18s; white-space:nowrap;
+}
+.btn-primary  { background:var(--amber); color:#08040A; box-shadow:0 0 18px rgba(200,136,30,.35); }
+.btn-primary:hover  { background:var(--amber2); transform:translateY(-1px); box-shadow:0 4px 28px rgba(200,136,30,.5); }
+.btn-ghost   { background:transparent; border:1px solid var(--brd2); color:var(--t2); }
+.btn-ghost:hover  { border-color:var(--amber); color:var(--amber); }
+.btn-danger  { background:var(--red); color:var(--t1); }
+.btn-danger:hover { background:var(--red2); }
+.btn-success { background:var(--green); color:var(--t1); }
+.btn-success:hover { background:var(--green2); }
+.btn:active { transform:scale(.97); }
+
+.input {
+  width:100%; padding:11px 14px; background:var(--bg); border:1.5px solid var(--brd2);
+  border-radius:var(--r); color:var(--t1); font-family:'Barlow',sans-serif; font-size:15px;
+  outline:none; transition:border-color .18s;
+}
+.input:focus { border-color:var(--amber); }
+.input::placeholder { color:var(--t3); }
+
+.badge {
+  display:inline-block; padding:3px 10px; border-radius:20px;
+  font-size:11px; font-family:'Barlow Condensed',sans-serif; font-weight:700;
+  letter-spacing:.8px; text-transform:uppercase; white-space:nowrap;
+}
+.badge-indoor  { background:rgba(42,90,138,.25); color:var(--ind2); border:1px solid rgba(42,90,138,.5); }
+.badge-outdoor { background:rgba(42,106,58,.25); color:var(--out2); border:1px solid rgba(42,106,58,.5); }
+.badge-pending { background:rgba(200,136,30,.18); color:var(--amber2); border:1px solid rgba(200,136,30,.45); }
+
+.form-label { font-size:12px; font-weight:600; color:var(--t2); letter-spacing:.4px; }
+
+/* ─── MODAL ──────────────────────────────────────────── */
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.78);
+  display:flex; align-items:center; justify-content:center;
+  z-index:500; backdrop-filter:blur(6px); padding:20px;
+}
+.modal-overlay.hidden { display:none; }
+.modal-box {
+  background:var(--s2); border:1px solid var(--brd2); border-radius:20px;
+  width:100%; max-width:420px; overflow:hidden;
+  box-shadow:0 24px 80px rgba(0,0,0,.8);
+  animation:popIn .22s cubic-bezier(.34,1.56,.64,1);
+}
+.modal-header {
+  padding:20px 24px 16px; border-bottom:1px solid var(--brd);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.modal-header h2 { font-family:'Playfair Display',serif; font-size:20px; }
+.modal-close {
+  background:transparent; border:none; color:var(--t3); font-size:24px;
+  cursor:pointer; padding:2px 6px; line-height:1; border-radius:6px;
+  transition:all .18s;
+}
+.modal-close:hover { color:var(--t1); background:var(--s3); }
+.modal-body { padding:24px; }
+
+/* ─── ADMIN SHELL ────────────────────────────────────── */
+.admin-shell { display:flex; flex-direction:column; min-height:100vh; }
+.admin-header {
+  background:var(--s1); border-bottom:1px solid var(--brd);
+  padding:0 28px; height:64px;
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:100;
+  box-shadow:0 2px 20px rgba(0,0,0,.55);
+}
+.admin-logo { display:flex; align-items:center; gap:12px; }
+.admin-logo h1 { font-family:'Playfair Display',serif; font-size:20px; color:var(--amber2); font-style:italic; }
+.admin-logo-badge {
+  font-size:10px; font-family:'Barlow Condensed',sans-serif; font-weight:700;
+  letter-spacing:2.5px; text-transform:uppercase; color:var(--t3);
+  padding:3px 9px; border:1px solid var(--brd); border-radius:5px;
+}
+.admin-nav {
+  display:flex; gap:3px; background:var(--bg); border-radius:9px;
+  padding:3px; border:1px solid var(--brd);
+}
+.admin-nav button {
+  padding:7px 18px; border:none; background:transparent; color:var(--t2);
+  font-weight:600; font-size:13px; border-radius:7px; cursor:pointer; transition:all .18s;
+}
+.admin-nav button:hover { background:var(--s3); color:var(--t1); }
+.admin-nav button.active { background:var(--amber); color:#08040A; box-shadow:0 0 12px var(--aglow); }
+.admin-body { flex:1; padding:28px; max-width:980px; margin:0 auto; width:100%; }
+
+/* ─── SECTION HEADER ─────────────────────────────────── */
+.section-h { display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; }
+.section-h h2 { font-family:'Playfair Display',serif; font-size:24px; }
+.section-label {
+  font-size:10px; font-family:'Barlow Condensed',sans-serif; font-weight:700;
+  letter-spacing:2.5px; text-transform:uppercase; color:var(--t3); margin-bottom:14px;
+}
+
+/* ─── ORDERS ─────────────────────────────────────────── */
+.orders-list { display:flex; flex-direction:column; gap:10px; }
+.order-card {
+  background:var(--s2); border:1px solid var(--brd); border-radius:var(--r2);
+  padding:18px 22px; display:flex; align-items:flex-start; justify-content:space-between;
+  gap:20px; transition:border-color .2s, background .2s;
+  animation:slideIn .28s ease;
+}
+.order-card:hover { border-color:var(--brd2); background:var(--s3); }
+.order-card-left { flex:1; min-width:0; }
+.order-meta { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+.order-name { font-family:'Playfair Display',serif; font-size:18px; }
+.order-time { font-size:12px; color:var(--t3); font-family:'Barlow Condensed',sans-serif; font-weight:600; letter-spacing:.5px; }
+.order-items { list-style:none; display:flex; flex-direction:column; gap:4px; }
+.order-items li { font-size:14px; color:var(--t2); display:flex; align-items:center; gap:8px; }
+.order-qty { font-family:'Barlow Condensed',sans-serif; font-weight:800; color:var(--amber); font-size:17px; }
+.done-list .order-card { opacity:.38; pointer-events:none; }
+.pulse-dot {
+  width:8px; height:8px; background:var(--amber); border-radius:50%;
+  animation:pulse 1.4s ease-in-out infinite; flex-shrink:0;
+}
+.live-badge {
+  display:inline-flex; align-items:center; gap:6px;
+  background:rgba(200,136,30,.15); border:1px solid rgba(200,136,30,.4);
+  color:var(--amber2); font-size:12px; font-weight:700; font-family:'Barlow Condensed',sans-serif;
+  padding:4px 12px; border-radius:20px; letter-spacing:.5px;
+}
+
+/* ─── TABLES ─────────────────────────────────────────── */
+.tables-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px; margin-bottom:24px; }
+.table-card {
+  background:var(--s2); border:1px solid var(--brd); border-radius:var(--r2);
+  padding:16px 18px; transition:all .2s; cursor:default;
+}
+.table-card:hover { border-color:var(--brd2); transform:translateY(-2px); box-shadow:0 8px 28px rgba(0,0,0,.45); }
+.table-card-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; }
+.table-card h3 { font-family:'Playfair Display',serif; font-size:17px; }
+.table-card-actions { display:flex; gap:7px; }
+.tc-btn {
+  flex:1; padding:8px 10px; border-radius:7px; cursor:pointer;
+  font-weight:700; font-size:13px; transition:all .18s; border:1px solid;
+}
+.tc-qr  { background:var(--amber); color:#08040A; border-color:var(--amber); }
+.tc-qr:hover  { background:var(--amber2); }
+.tc-del { background:transparent; color:var(--red); border-color:var(--red); }
+.tc-del:hover { background:var(--red); color:white; }
+
+/* Add form panel */
+.panel {
+  background:var(--s2); border:1px solid var(--brd); border-radius:var(--r2); padding:22px 24px;
+}
+.form-row { display:flex; gap:12px; align-items:flex-end; }
+.form-group { flex:1; display:flex; flex-direction:column; gap:7px; }
+
+/* Location toggle */
+.loc-toggle { display:flex; gap:6px; }
+.loc-btn {
+  flex:1; padding:10px 12px; border-radius:var(--r); border:1.5px solid var(--brd2);
+  background:transparent; color:var(--t2); font-weight:600; font-size:13px;
+  cursor:pointer; transition:all .18s; text-align:center;
+}
+.loc-btn:hover { border-color:var(--brd); color:var(--t1); }
+.loc-indoor  { background:rgba(42,90,138,.25); border-color:var(--indoor); color:var(--ind2); }
+.loc-outdoor { background:rgba(42,106,58,.25); border-color:var(--outdoor); color:var(--out2); }
+
+/* ─── DRINKS ─────────────────────────────────────────── */
+.drinks-list { display:flex; flex-direction:column; gap:7px; margin-bottom:22px; }
+.drink-item {
+  background:var(--s2); border:1px solid var(--brd); border-radius:var(--r);
+  padding:13px 18px; display:flex; align-items:center; justify-content:space-between;
+  transition:all .18s;
+}
+.drink-item:hover { border-color:var(--brd2); background:var(--s3); }
+.drink-item-name { font-size:16px; font-weight:600; }
+.drink-del { background:transparent; border:1px solid var(--red); color:var(--red); border-radius:7px; padding:6px 14px; cursor:pointer; font-weight:700; font-size:12px; font-family:'Barlow',sans-serif; transition:all .18s; }
+.drink-del:hover { background:var(--red); color:white; }
+
+/* ─── EMPTY STATE ────────────────────────────────────── */
+.empty-state { text-align:center; padding:56px 24px; }
+.empty-state .es-icon { font-size:44px; margin-bottom:14px; opacity:.45; }
+.empty-state h3 { font-family:'Playfair Display',serif; font-size:22px; color:var(--t2); margin-bottom:6px; }
+.empty-state p { color:var(--t3); font-size:14px; }
+
+/* ─── QR MODAL ───────────────────────────────────────── */
+.qr-container { display:flex; flex-direction:column; align-items:center; gap:16px; }
+#qrcode-render { background:#fff; padding:14px; border-radius:12px; display:inline-block; }
+.qr-url {
+  font-size:11px; color:var(--t3); word-break:break-all; text-align:center;
+  padding:10px; background:var(--bg); border-radius:8px; border:1px solid var(--brd);
+  font-family:'Barlow Condensed',sans-serif; line-height:1.5;
+}
+.qr-warning {
+  font-size:12px; color:var(--amber2); text-align:center; padding:9px 12px;
+  background:var(--aglow); border:1px solid rgba(200,136,30,.35);
+  border-radius:8px; line-height:1.4;
+}
+
+/* ─── TABLE VIEW (CUSTOMER) ──────────────────────────── */
+.table-view { min-height:100vh; padding-bottom:130px; }
+.tv-header {
+  background:var(--s1); border-bottom:1px solid var(--brd);
+  padding:20px 22px; position:sticky; top:0; z-index:50;
+  box-shadow:0 4px 28px rgba(0,0,0,.65);
+}
+.tv-bar-name { font-size:11px; font-family:'Barlow Condensed',sans-serif; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--t3); margin-bottom:3px; }
+.tv-table-name { font-family:'Playfair Display',serif; font-size:28px; font-weight:900; color:var(--amber2); line-height:1.1; }
+.tv-meta { display:flex; align-items:center; gap:10px; margin-top:9px; }
+.tv-subtitle { font-size:13px; color:var(--t3); }
+.tv-content { padding:22px 20px; }
+.tv-drinks-title {
+  font-size:10px; font-family:'Barlow Condensed',sans-serif; font-weight:700;
+  letter-spacing:3px; text-transform:uppercase; color:var(--t3);
+  margin-bottom:16px; display:flex; align-items:center; gap:10px;
+}
+.tv-drinks-title::after { content:''; flex:1; height:1px; background:var(--brd); }
+
+/* Drink selection card */
+.drink-sel-card {
+  background:var(--s2); border:1.5px solid var(--brd); border-radius:var(--r2);
+  padding:16px 18px; margin-bottom:10px; transition:all .2s;
+}
+.drink-sel-card.active { border-color:var(--amber); background:var(--s3); }
+.drink-sel-card.active .drink-sel-name { color:var(--amber2); }
+.drink-sel-name { font-size:18px; font-weight:700; margin-bottom:14px; transition:color .18s; }
+
+/* Qty control row */
+.qty-row { display:flex; align-items:center; gap:10px; }
+.qty-pm {
+  width:38px; height:38px; border-radius:50%; border:1.5px solid var(--brd2);
+  background:var(--bg); color:var(--t1); font-size:20px; font-weight:700;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; transition:all .18s; line-height:1; user-select:none;
+}
+.qty-pm:hover { border-color:var(--amber); color:var(--amber); background:var(--s3); }
+.qty-pm:active { transform:scale(.9); }
+input[type=range].qty-slider {
+  flex:1; -webkit-appearance:none; appearance:none;
+  height:5px; border-radius:3px; background:var(--brd2); outline:none; cursor:pointer;
+}
+input[type=range].qty-slider::-webkit-slider-thumb {
+  -webkit-appearance:none; width:22px; height:22px; border-radius:50%;
+  background:var(--amber); cursor:pointer; box-shadow:0 0 10px rgba(200,136,30,.55);
+  transition:transform .1s;
+}
+input[type=range].qty-slider::-webkit-slider-thumb:hover { transform:scale(1.25); }
+input[type=range].qty-slider::-moz-range-thumb {
+  width:22px; height:22px; border-radius:50%; background:var(--amber); border:none; cursor:pointer;
+}
+.qty-num {
+  width:52px; height:38px; background:var(--bg); border:1.5px solid var(--brd2);
+  border-radius:8px; text-align:center; color:var(--t1);
+  font-family:'Barlow Condensed',sans-serif; font-size:22px; font-weight:800;
+  outline:none; transition:border-color .18s;
+}
+.qty-num:focus { border-color:var(--amber); }
+
+/* Cart bar */
+.cart-bar {
+  position:fixed; bottom:0; left:0; right:0; z-index:200;
+  padding:12px 18px 20px;
+  background:linear-gradient(to top, var(--bg) 55%, transparent);
+}
+.cart-btn {
+  width:100%; padding:17px 22px; border:none; border-radius:var(--r2);
+  background:var(--amber); color:#08040A;
+  display:flex; align-items:center; justify-content:space-between;
+  box-shadow:0 8px 36px rgba(200,136,30,.55);
+  cursor:pointer; transition:all .2s;
+}
+.cart-btn:hover { background:var(--amber2); transform:translateY(-2px); box-shadow:0 14px 44px rgba(200,136,30,.65); }
+.cart-btn:active { transform:scale(.98); }
+.cart-btn.empty { background:var(--s3); color:var(--t3); box-shadow:none; pointer-events:none; }
+.cart-btn-label { display:flex; align-items:center; gap:10px; font-size:18px; font-weight:700; }
+.cart-btn-count {
+  background:rgba(0,0,0,.22); border-radius:40px; padding:4px 14px;
+  font-size:17px; font-weight:900; font-family:'Barlow Condensed',sans-serif; min-width:60px; text-align:center;
+}
+
+/* Cart modal items */
+.cart-items { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
+.cart-item {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; background:var(--bg); border:1px solid var(--brd);
+  border-radius:var(--r); gap:10px;
+}
+.ci-name { font-weight:600; font-size:16px; flex:1; }
+.ci-qty { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:800; color:var(--amber); min-width:30px; text-align:center; }
+.ci-del { background:transparent; border:none; color:var(--t3); font-size:18px; cursor:pointer; padding:3px 6px; border-radius:5px; transition:all .18s; line-height:1; }
+.ci-del:hover { color:var(--red2); background:rgba(138,42,42,.15); }
+.cart-summary { display:flex; justify-content:space-between; align-items:center; padding:14px 0; border-top:1px solid var(--brd); margin-bottom:18px; }
+.cart-summary-label { color:var(--t2); font-size:14px; font-weight:600; }
+.cart-summary-val { font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:800; color:var(--amber); }
+.order-btn { width:100%; padding:16px; font-size:17px; font-weight:700; border-radius:var(--r2); border:none; background:var(--amber); color:#08040A; cursor:pointer; transition:all .2s; box-shadow:0 4px 20px rgba(200,136,30,.4); }
+.order-btn:hover { background:var(--amber2); transform:translateY(-1px); }
+
+/* Success screen */
+.success-screen { text-align:center; padding:32px 20px 20px; }
+.success-icon { font-size:58px; margin-bottom:16px; animation:popIn .4s cubic-bezier(.34,1.56,.64,1); display:block; }
+.success-screen h2 { font-family:'Playfair Display',serif; font-size:26px; color:var(--amber2); margin-bottom:8px; }
+.success-screen p { color:var(--t2); font-size:15px; line-height:1.5; }
+
+/* ─── ANIMATIONS ─────────────────────────────────────── */
+@keyframes slideIn  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
+@keyframes popIn    { from { opacity:0; transform:scale(.85); } to { opacity:1; transform:scale(1); } }
+@keyframes pulse    { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.45; transform:scale(.8); } }
+.fade-in { animation:fadeIn .28s ease; }
+
+/* ─── SCROLLBAR ──────────────────────────────────────── */
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:var(--bg); }
+::-webkit-scrollbar-thumb { background:var(--brd2); border-radius:3px; }
+
+/* ─── RESPONSIVE ─────────────────────────────────────── */
+@media (max-width:640px) {
+  .admin-body { padding:16px; }
+  .admin-header { padding:0 16px; }
+  .admin-logo-badge { display:none; }
+  .form-row { flex-direction:column; }
+  .form-row > * { width:100%; }
+  .admin-nav button { padding:7px 12px; font-size:12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Root -->
+<div id="app"></div>
+
+<!-- Modal -->
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div id="modal-box" class="modal-box"></div>
+</div>
+
+<script>
+'use strict';
+
+/* ══════════════════════════════════════════
+   STATE
+══════════════════════════════════════════ */
+const SK = 'barapp_v4';
+
+function getState() {
+  try { return JSON.parse(localStorage.getItem(SK)) || mkState(); }
+  catch(e) { return mkState(); }
+}
+function mkState() { return { drinks:[], tables:[], orders:[] }; }
+function mutate(fn) {
+  const s = getState();
+  fn(s);
+  localStorage.setItem(SK, JSON.stringify(s));
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function timeFmt(ts) { return new Date(ts).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
+
+/* ══════════════════════════════════════════
+   ROUTER
+══════════════════════════════════════════ */
+let _adminTab = 'orders';
+let _refreshTimer = null;
+
+function getRoute() {
+  const h = (location.hash || '#').replace('#','');
+  if (h.startsWith('table/')) return { page:'table', id: h.slice(6) };
+  if (h.startsWith('admin/')) { _adminTab = h.slice(6) || 'orders'; }
+  return { page:'admin' };
+}
+
+window.addEventListener('hashchange', () => { clearInterval(_refreshTimer); renderApp(); });
+window.addEventListener('DOMContentLoaded', () => {
+  if (!location.hash || location.hash === '#') location.hash = '#admin';
+  renderApp();
+  document.getElementById('modal-overlay').addEventListener('click', e => {
+    if (e.target.id === 'modal-overlay') closeModal();
+  });
+});
+
+/* ══════════════════════════════════════════
+   ROOT RENDER
+══════════════════════════════════════════ */
+function renderApp() {
+  const r = getRoute();
+  if (r.page === 'table') renderTablePage(r.id);
+  else renderAdminPage();
+}
+
+/* ══════════════════════════════════════════
+   ADMIN PAGE
+══════════════════════════════════════════ */
+function renderAdminPage() {
+  document.getElementById('app').innerHTML = `
+    <div class="admin-shell">
+      <header class="admin-header">
+        <div class="admin-logo">
+          <h1>🍺 Bar Manager</h1>
+          <span class="admin-logo-badge">Admin</span>
+        </div>
+        <nav class="admin-nav" id="admin-nav">
+          <button onclick="setTab('orders')"  class="${_adminTab==='orders' ?'active':''}">Bestellungen</button>
+          <button onclick="setTab('tables')"  class="${_adminTab==='tables' ?'active':''}">Tische</button>
+          <button onclick="setTab('drinks')"  class="${_adminTab==='drinks' ?'active':''}">Getränke</button>
+        </nav>
+      </header>
+      <main class="admin-body" id="admin-body"></main>
+    </div>`;
+  renderTab();
+
+  if (_adminTab === 'orders') {
+    _refreshTimer = setInterval(() => {
+      if (getRoute().page === 'admin' && _adminTab === 'orders') renderTab();
+    }, 5000);
+  }
+}
+
+window.setTab = function(tab) {
+  _adminTab = tab;
+  location.hash = '#admin/' + tab;
+  clearInterval(_refreshTimer);
+  renderTab();
+  document.querySelectorAll('#admin-nav button').forEach((btn, i) => {
+    btn.className = ['orders','tables','drinks'][i] === tab ? 'active' : '';
+  });
+  if (tab === 'orders') {
+    _refreshTimer = setInterval(() => {
+      if (getRoute().page === 'admin' && _adminTab === 'orders') renderTab();
+    }, 5000);
+  }
+};
+
+function renderTab() {
+  const body = document.getElementById('admin-body');
+  if (!body) return;
+  if (_adminTab === 'orders') body.innerHTML = buildOrders();
+  else if (_adminTab === 'tables') body.innerHTML = buildTables();
+  else if (_adminTab === 'drinks') body.innerHTML = buildDrinks();
+}
+
+/* ── ORDERS TAB ─────────────────────────────────────── */
+function buildOrders() {
+  const s = getState();
+  const pending = s.orders.filter(o=>o.status==='pending').sort((a,b)=>b.ts-a.ts);
+  const done    = s.orders.filter(o=>o.status==='done').sort((a,b)=>b.ts-a.ts).slice(0,6);
+
+  let html = `<div class="section-h">
+    <h2>Bestellungen</h2>
+    ${pending.length > 0 ? `<div class="live-badge"><span class="pulse-dot"></span> ${pending.length} offen</div>` : ''}
+  </div>`;
+
+  if (pending.length === 0) {
+    html += `<div class="empty-state fade-in"><div class="es-icon">🍻</div><h3>Alles erledigt</h3><p>Neue Bestellungen erscheinen hier automatisch.</p></div>`;
+  } else {
+    html += `<div class="orders-list fade-in">` + pending.map(o => orderCardHTML(o, s, false)).join('') + `</div>`;
+  }
+
+  if (done.length > 0) {
+    html += `<div style="margin-top:34px">
+      <div class="section-label">Zuletzt erledigt</div>
+      <div class="orders-list done-list">` + done.map(o => orderCardHTML(o, s, true)).join('') + `</div>
+    </div>`;
+  }
+  return html;
+}
+
+function orderCardHTML(o, s, isDone) {
+  const table = s.tables.find(t=>t.id===o.tableId);
+  const tName = table ? table.name : 'Unbekannt';
+  const loc   = table ? table.location : 'indoor';
+  const items = o.items.map(i => {
+    const d = s.drinks.find(d=>d.id===i.drinkId);
+    return `<li><span class="order-qty">${i.qty}×</span> ${d ? d.name : '?'}</li>`;
+  }).join('');
+  return `
+    <div class="order-card" id="oc-${o.id}">
+      <div class="order-card-left">
+        <div class="order-meta">
+          <span class="order-name">${tName}</span>
+          <span class="badge badge-${loc==='indoor'?'indoor':'outdoor'}">${loc==='indoor'?'⛺ Zelt':'🌿 Außen'}</span>
+          <span class="order-time">${timeFmt(o.ts)}</span>
+        </div>
+        <ul class="order-items">${items}</ul>
+      </div>
+      ${!isDone ? `<button class="btn btn-success" onclick="markDone('${o.id}')">✓&nbsp;Erledigt</button>` : ''}
+    </div>`;
+}
+
+window.markDone = function(id) {
+  const el = document.getElementById('oc-' + id);
+  if (el) {
+    el.style.transition = 'opacity .3s, transform .3s';
+    el.style.opacity = '0'; el.style.transform = 'translateX(30px)';
+  }
+  mutate(s => { const o = s.orders.find(o=>o.id===id); if(o) o.status='done'; });
+  setTimeout(renderTab, 320);
+};
+
+/* ── TABLES TAB ─────────────────────────────────────── */
+let _newLoc = 'indoor';
+
+function buildTables() {
+  const s = getState();
+  const cards = s.tables.map(t => `
+    <div class="table-card">
+      <div class="table-card-top">
+        <h3>${t.name}</h3>
+        <span class="badge badge-${t.location==='indoor'?'indoor':'outdoor'}">${t.location==='indoor'?'Zelt':'Außen'}</span>
+      </div>
+      <div class="table-card-actions">
+        <button class="tc-btn tc-del" onclick="deleteTable('${t.id}')">Löschen</button>
+        <button class="tc-btn tc-qr" onclick="showQR('${t.id}')">QR Code</button>
+      </div>
+    </div>`).join('');
+
+  return `
+    ${s.tables.length === 0
+      ? `<div class="empty-state fade-in"><div class="es-icon">🪑</div><h3>Noch keine Tische</h3><p>Füge deinen ersten Tisch hinzu.</p></div>`
+      : `<div class="tables-grid fade-in">${cards}</div>`}
+    <div class="panel">
+      <div class="section-label">Neuen Tisch hinzufügen</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Tischname</label>
+          <input id="new-table-name" class="input" placeholder="z. B. Tisch 3, VIP 1, Bar…" maxlength="40"
+            onkeydown="if(event.key==='Enter') addTable()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Standort</label>
+          <div class="loc-toggle">
+            <button id="lb-indoor"  class="loc-btn ${_newLoc==='indoor' ?'loc-indoor' :''}" onclick="setLoc('indoor')">⛺ Zelt</button>
+            <button id="lb-outdoor" class="loc-btn ${_newLoc==='outdoor'?'loc-outdoor':''}" onclick="setLoc('outdoor')">🌿 Außen</button>
+          </div>
+        </div>
+        <div><button class="btn btn-primary" onclick="addTable()" style="height:44px">+ Hinzufügen</button></div>
+      </div>
+    </div>`;
+}
+
+window.setLoc = function(loc) {
+  _newLoc = loc;
+  document.getElementById('lb-indoor').className  = 'loc-btn' + (loc==='indoor'  ? ' loc-indoor'  : '');
+  document.getElementById('lb-outdoor').className = 'loc-btn' + (loc==='outdoor' ? ' loc-outdoor' : '');
+};
+
+window.addTable = function() {
+  const el = document.getElementById('new-table-name');
+  const name = el.value.trim();
+  if (!name) { el.focus(); el.style.borderColor='var(--amber)'; setTimeout(()=>el.style.borderColor='',1200); return; }
+  mutate(s => s.tables.push({ id:uid(), name, location:_newLoc }));
+  el.value = '';
+  renderTab();
+};
+
+window.deleteTable = function(id) {
+  if (!confirm('Tisch wirklich löschen? QR-Codes für diesen Tisch funktionieren dann nicht mehr.')) return;
+  mutate(s => { s.tables = s.tables.filter(t=>t.id!==id); });
+  renderTab();
+};
+
+window.showQR = function(tableId) {
+  const s = getState();
+  const table = s.tables.find(t=>t.id===tableId);
+  if (!table) return;
+
+  const base = location.href.split('#')[0];
+  const url  = base + '#table/' + tableId;
+  const isPreview = base.startsWith('blob:') || base.startsWith('about:') || base.startsWith('data:') || base === '';
+  const displayUrl = isPreview ? '[URL nach Deployment]  #table/' + tableId : url;
+
+  const box = document.getElementById('modal-box');
+  box.innerHTML = `
+    <div class="modal-header">
+      <h2>QR Code – ${table.name}</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="qr-container">
+        <div id="qrcode-render"></div>
+        ${isPreview ? `<div class="qr-warning">⚠ Vorschaumodus — speichere die HTML-Datei und öffne sie im Browser, damit der QR-Code die richtige URL enthält.</div>` : ''}
+        <div class="qr-url">${displayUrl}</div>
+        <p style="font-size:13px;color:var(--t3);text-align:center;line-height:1.5">Auf Tisch kleben · Gäste scannen und bestellen direkt.</p>
+        <div style="display:flex;gap:10px;width:100%">
+          <button class="btn btn-ghost" style="flex:1" onclick="downloadQR('${table.name}')">⬇ PNG speichern</button>
+          <button class="btn btn-primary" style="flex:1" onclick="closeModal()">Schließen</button>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('modal-overlay').classList.remove('hidden');
+
+  setTimeout(() => {
+    new QRCode(document.getElementById('qrcode-render'), {
+      text: url || 'https://example.com/#table/' + tableId,
+      width: 220, height: 220,
+      colorDark: '#000000', colorLight: '#FFFFFF',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+  }, 60);
+};
+
+window.downloadQR = function(name) {
+  const canvas = document.querySelector('#qrcode-render canvas');
+  if (!canvas) { alert('QR-Code noch nicht gerendert – bitte kurz warten.'); return; }
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = 'QR_' + name.replace(/\s+/g,'_') + '.png';
+  a.click();
+};
+
+/* ── DRINKS TAB ─────────────────────────────────────── */
+function buildDrinks() {
+  const s = getState();
+  const list = s.drinks.length === 0
+    ? `<div class="empty-state fade-in"><div class="es-icon">🍹</div><h3>Noch keine Getränke</h3><p>Füge dein erstes Getränk hinzu.</p></div>`
+    : `<div class="drinks-list fade-in">${s.drinks.map(d=>`
+        <div class="drink-item">
+          <span class="drink-item-name">${d.name}</span>
+          <button class="drink-del" onclick="deleteDrink('${d.id}')">Entfernen</button>
+        </div>`).join('')}</div>`;
+
+  return `${list}
+    <div class="panel">
+      <div class="section-label">Neues Getränk hinzufügen</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Getränkename</label>
+          <input id="new-drink-name" class="input" placeholder="z. B. Bier, Wein, Wasser, Cocktail…" maxlength="60"
+            onkeydown="if(event.key==='Enter') addDrink()">
+        </div>
+        <div><button class="btn btn-primary" onclick="addDrink()" style="height:44px">+ Hinzufügen</button></div>
+      </div>
+    </div>`;
+}
+
+window.addDrink = function() {
+  const el = document.getElementById('new-drink-name');
+  const name = el.value.trim();
+  if (!name) { el.focus(); el.style.borderColor='var(--amber)'; setTimeout(()=>el.style.borderColor='',1200); return; }
+  mutate(s => s.drinks.push({ id:uid(), name }));
+  el.value = '';
+  renderTab();
+  setTimeout(() => { const e = document.getElementById('new-drink-name'); if(e) e.focus(); }, 50);
+};
+
+window.deleteDrink = function(id) {
+  mutate(s => { s.drinks = s.drinks.filter(d=>d.id!==id); });
+  renderTab();
+};
+
+/* ══════════════════════════════════════════
+   CUSTOMER TABLE PAGE
+══════════════════════════════════════════ */
+let _cart = {}; // drinkId → qty
+
+function renderTablePage(tableId) {
+  const s = getState();
+  const table = s.tables.find(t=>t.id===tableId);
+
+  if (!table) {
+    document.getElementById('app').innerHTML = `
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:32px">
+        <div class="fade-in">
+          <div style="font-size:52px;margin-bottom:18px">🔍</div>
+          <h2 style="font-family:'Playfair Display',serif;color:var(--t2);margin-bottom:8px">Tisch nicht gefunden</h2>
+          <p style="color:var(--t3)">Bitte scanne den QR-Code erneut.</p>
+        </div>
+      </div>`; return;
+  }
+
+  if (s.drinks.length === 0) {
+    document.getElementById('app').innerHTML = `
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:32px">
+        <div class="fade-in">
+          <div style="font-size:52px;margin-bottom:18px">🍺</div>
+          <h2 style="font-family:'Playfair Display',serif;color:var(--t2);margin-bottom:8px">Gleich los!</h2>
+          <p style="color:var(--t3)">Die Getränkekarte wird noch vorbereitet.</p>
+        </div>
+      </div>`; return;
+  }
+
+  const drinkCards = s.drinks.map(d => {
+    const q = _cart[d.id] || 0;
+    return `
+      <div class="drink-sel-card ${q>0?'active':''}" id="dsc-${d.id}">
+        <div class="drink-sel-name">${d.name}</div>
+        <div class="qty-row">
+          <button class="qty-pm" onclick="changeQty('${d.id}',-1)">−</button>
+          <input type="range" class="qty-slider" id="sl-${d.id}" min="0" max="10" value="${q}"
+            oninput="slideQty('${d.id}',this.value)">
+          <input type="number" class="qty-num" id="qn-${d.id}" min="0" max="99" value="${q}"
+            oninput="numQty('${d.id}',this.value)"
+            onchange="numQty('${d.id}',this.value)">
+          <button class="qty-pm" onclick="changeQty('${d.id}',1)">+</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  const cartTotal = totalCartItems();
+
+  document.getElementById('app').innerHTML = `
+    <div class="table-view">
+      <div class="tv-header">
+        <div class="tv-bar-name">Bar Manager</div>
+        <div class="tv-table-name">${table.name}</div>
+        <div class="tv-meta">
+          <span class="badge badge-${table.location==='indoor'?'indoor':'outdoor'}">${table.location==='indoor'?'⛺ Zelt':'🌿 Außen'}</span>
+          <span class="tv-subtitle">Wähle deine Getränke aus</span>
+        </div>
+      </div>
+      <div class="tv-content">
+        <div class="tv-drinks-title">Getränkekarte</div>
+        ${drinkCards}
+      </div>
+      <div class="cart-bar">
+        <button class="cart-btn${cartTotal===0?' empty':''}" id="cart-btn" onclick="openCart()">
+          <span class="cart-btn-label">🛒 Warenkorb</span>
+          <span class="cart-btn-count" id="cart-count">${cartTotal} Stück</span>
+        </button>
+      </div>
+    </div>`;
+}
+
+function totalCartItems() {
+  return Object.values(_cart).reduce((a,b)=>a+b, 0);
+}
+
+function syncCartBtn() {
+  const n = totalCartItems();
+  const btn = document.getElementById('cart-btn');
+  const cnt = document.getElementById('cart-count');
+  if (btn) btn.className = 'cart-btn' + (n===0?' empty':'');
+  if (cnt) cnt.textContent = n + ' Stück';
+}
+
+function setQtyVal(drinkId, qty) {
+  qty = Math.max(0, Math.min(99, qty));
+  if (qty === 0) delete _cart[drinkId]; else _cart[drinkId] = qty;
+  // Sync slider (capped at 10) and number input
+  const sl = document.getElementById('sl-' + drinkId);
+  const qn = document.getElementById('qn-' + drinkId);
+  const card = document.getElementById('dsc-' + drinkId);
+  if (sl)   sl.value = Math.min(10, qty);
+  if (qn)   qn.value = qty;
+  if (card) card.className = 'drink-sel-card' + (qty>0?' active':'');
+  syncCartBtn();
+}
+
+window.changeQty = function(id, d) { setQtyVal(id, (_cart[id]||0) + d); };
+window.slideQty  = function(id, v) { setQtyVal(id, parseInt(v)||0); };
+window.numQty    = function(id, v) { setQtyVal(id, parseInt(v)||0); };
+
+window.openCart = function() {
+  const s = getState();
+  const items = Object.entries(_cart).filter(([,q])=>q>0).map(([id,qty]) => {
+    const d = s.drinks.find(d=>d.id===id);
+    return { drinkId:id, name: d?d.name:'?', qty };
+  });
+  if (items.length === 0) return;
+
+  const total = items.reduce((a,b)=>a+b.qty, 0);
+  const itemsHTML = items.map(it => `
+    <div class="cart-item">
+      <span class="ci-name">${it.name}</span>
+      <span class="ci-qty">${it.qty}×</span>
+      <button class="ci-del" onclick="removeCartItem('${it.drinkId}')">✕</button>
+    </div>`).join('');
+
+  const box = document.getElementById('modal-box');
+  box.innerHTML = `
+    <div class="modal-header">
+      <h2>Dein Warenkorb</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="cart-items">${itemsHTML}</div>
+      <div class="cart-summary">
+        <span class="cart-summary-label">Gesamt</span>
+        <span class="cart-summary-val">${total} Stück</span>
+      </div>
+      <button class="order-btn" onclick="submitOrder()">Jetzt bestellen →</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.remove('hidden');
+};
+
+window.removeCartItem = function(drinkId) {
+  delete _cart[drinkId];
+  setQtyVal(drinkId, 0);
+  if (Object.keys(_cart).length === 0) { closeModal(); return; }
+  openCart();
+};
+
+window.submitOrder = function() {
+  const h = (location.hash||'').replace('#','');
+  const tableId = h.startsWith('table/') ? h.slice(6) : null;
+  if (!tableId) return;
+  const items = Object.entries(_cart).filter(([,q])=>q>0).map(([drinkId,qty])=>({drinkId,qty}));
+  if (items.length === 0) return;
+
+  mutate(s => s.orders.push({ id:uid(), tableId, items, status:'pending', ts:Date.now() }));
+  _cart = {};
+
+  const box = document.getElementById('modal-box');
+  box.innerHTML = `
+    <div class="modal-body">
+      <div class="success-screen">
+        <span class="success-icon">🎉</span>
+        <h2>Bestellung abgegeben!</h2>
+        <p>Deine Bestellung ist beim Barkeeper&nbsp;eingegangen.<br>Gleich wird's serviert!</p>
+        <button class="btn btn-primary" style="margin-top:26px;width:100%;font-size:16px" onclick="closeModal()">
+          Weitere Bestellungen
+        </button>
+      </div>
+    </div>`;
+};
+
+/* ══════════════════════════════════════════
+   MODAL
+══════════════════════════════════════════ */
+window.closeModal = function() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+  document.getElementById('modal-box').innerHTML = '';
+  // Re-render table page to reset qty displays
+  const r = getRoute();
+  if (r.page === 'table') renderTablePage(r.id);
+};
+</script>
+</body>
+</html>
