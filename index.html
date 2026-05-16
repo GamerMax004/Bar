@@ -144,6 +144,9 @@ body::before {
 .admin-nav button:hover { background:var(--s3); color:var(--t1); }
 .admin-nav button.active { background:var(--amber); color:#08040A; box-shadow:0 0 12px var(--aglow); }
 .admin-body { flex:1; padding:28px; max-width:980px; margin:0 auto; width:100%; }
+.cloudbar{display:flex;gap:10px;align-items:center;background:var(--s2);border:1px solid var(--brd);padding:10px 12px;border-radius:10px;margin-bottom:16px;flex-wrap:wrap}
+.cloudbar small{color:var(--t3)}
+.na-pill{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;background:rgba(200,136,30,.18);color:var(--amber2);border:1px solid rgba(200,136,30,.45);} 
 
 /* ─── SECTION HEADER ─────────────────────────────────── */
 .section-h { display:flex; align-items:center; justify-content:space-between; margin-bottom:22px; }
@@ -396,16 +399,41 @@ input[type=range].qty-slider::-moz-range-thumb {
    STATE
 ══════════════════════════════════════════ */
 const SK = 'barapp_v4';
+const CLOUD_SK = 'barapp_cloud_url';
+let _stateCache = null;
+let _cloudUrl = localStorage.getItem(CLOUD_SK) || '';
 
-function getState() {
-  try { return JSON.parse(localStorage.getItem(SK)) || mkState(); }
-  catch(e) { return mkState(); }
-}
+function getState() { return _stateCache || mkState(); }
 function mkState() { return { drinks:[], tables:[], orders:[] }; }
+function safeParse(v){ try{return JSON.parse(v);}catch(e){return null;} }
+async function bootState() {
+  const local = safeParse(localStorage.getItem(SK)) || mkState();
+  _stateCache = local;
+  const qp = new URLSearchParams(location.search).get('cloud');
+  if (qp) { _cloudUrl = decodeURIComponent(qp); localStorage.setItem(CLOUD_SK, _cloudUrl); }
+  if (_cloudUrl) {
+    try {
+      const r = await fetch(_cloudUrl);
+      if (r.ok) {
+        const remote = await r.json();
+        if (remote && typeof remote === 'object') {
+          _stateCache = { ...mkState(), ...remote };
+          localStorage.setItem(SK, JSON.stringify(_stateCache));
+        }
+      }
+    } catch(e){}
+  }
+}
+async function syncCloud() {
+  if (!_cloudUrl) return;
+  try { await fetch(_cloudUrl, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(_stateCache) }); } catch(e){}
+}
 function mutate(fn) {
   const s = getState();
   fn(s);
+  _stateCache = s;
   localStorage.setItem(SK, JSON.stringify(s));
+  syncCloud();
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function timeFmt(ts) { return new Date(ts).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); }
@@ -424,8 +452,9 @@ function getRoute() {
 }
 
 window.addEventListener('hashchange', () => { clearInterval(_refreshTimer); renderApp(); });
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   if (!location.hash || location.hash === '#') location.hash = '#admin';
+  await bootState();
   renderApp();
   document.getElementById('modal-overlay').addEventListener('click', e => {
     if (e.target.id === 'modal-overlay') closeModal();
@@ -458,7 +487,7 @@ function renderAdminPage() {
           <button onclick="setTab('drinks')"  class="${_adminTab==='drinks' ?'active':''}">Getränke</button>
         </nav>
       </header>
-      <main class="admin-body" id="admin-body"></main>
+      <main class="admin-body" id="admin-body"><div class="cloudbar"><strong>🌍 Cloud-Sync</strong><input id="cloud-url" class="input" style="max-width:360px;height:34px" placeholder="https://jsonblob.com/api/jsonBlob/..." value="${_cloudUrl}"><button class="btn btn-ghost" onclick="setCloudUrl()">Speichern</button><small id="cloud-state">${_cloudUrl ? "Aktiv" : "Lokal"}</small></div><div id="admin-body-inner"></div></main>
     </div>`;
   renderTab();
 
@@ -468,6 +497,16 @@ function renderAdminPage() {
     }, 5000);
   }
 }
+
+window.setCloudUrl = async function() {
+  const el = document.getElementById('cloud-url');
+  if (!el) return;
+  _cloudUrl = el.value.trim();
+  localStorage.setItem(CLOUD_SK, _cloudUrl);
+  document.getElementById('cloud-state').textContent = _cloudUrl ? 'Aktiv' : 'Lokal';
+  await syncCloud();
+  alert(_cloudUrl ? 'Cloud-Sync aktiviert.' : 'Cloud-Sync deaktiviert.');
+};
 
 window.setTab = function(tab) {
   _adminTab = tab;
@@ -485,7 +524,7 @@ window.setTab = function(tab) {
 };
 
 function renderTab() {
-  const body = document.getElementById('admin-body');
+  const body = document.getElementById('admin-body-inner');
   if (!body) return;
   if (_adminTab === 'orders') body.innerHTML = buildOrders();
   else if (_adminTab === 'tables') body.innerHTML = buildTables();
@@ -536,7 +575,7 @@ function orderCardHTML(o, s, isDone) {
   const l = locMeta(loc);
   const items = o.items.map(i => {
     const d = s.drinks.find(d=>d.id===i.drinkId);
-    return `<li><span class="order-qty">${i.qty}×</span> ${d ? d.name : '?'}</li>`;
+    return `<li><span class="order-qty">${i.qty}×</span> ${d ? d.name : '?'} ${i.nonAlcoholic ? '<span class=\"na-pill\">Alkoholfrei</span>' : ''}</li>`;
   }).join('');
   return `
     <div class="order-card" id="oc-${o.id}">
@@ -760,7 +799,7 @@ function renderTablePage(tableId) {
       <div class="drink-sel-card ${q>0?'active':''}" id="dsc-${d.id}">
         <div class="drink-sel-name">${d.name}</div>
         ${d.description ? `<div style="font-size:12px;color:var(--t2);margin-top:-8px;margin-bottom:10px">${d.description}</div>` : ''}
-        ${d.allowNonAlcoholic ? `<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);margin:-2px 0 10px"><input type="checkbox" ${_naOptions[d.id] ? 'checked' : ''} onchange="toggleNA('${d.id}', this.checked)"> Alkoholfrei</label>` : ''}
+        ${d.allowNonAlcoholic ? `<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);margin:-2px 0 10px"><input type="checkbox" ${_naOptions[d.id] ? 'checked' : ''} onchange="toggleNA('${d.id}', this.checked)"> <span class="na-pill" style="margin-left:0">Alkoholfrei</span></label>` : ''}
         <div class="qty-row">
           <button class="qty-pm" onclick="changeQty('${d.id}',-1)">−</button>
           <input type="range" class="qty-slider" id="sl-${d.id}" min="0" max="10" value="${q}"
